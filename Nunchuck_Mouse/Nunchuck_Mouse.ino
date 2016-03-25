@@ -23,7 +23,7 @@
   SOFTWARE.
 */
 //Includes
-//#include <Keyboard.h> // You can use this to make automating text entry and what not
+#include <Keyboard.h> // You can use this to make automating text entry and what not
 #include <Mouse101.h> // This would normally be <Mouse.h> but I updated and it was throwing errors so I remained some things
 #include <Wire.h>
 
@@ -33,8 +33,13 @@ int cnt = 0; // Used to make sure all the data is received from the wii remote
 int t = 0;  // when it gets to READ_FREQ, read nunchuck
 bool zLast[3] = {1, 1, 1}; // Used to smooth the mouse button operation, yours may work without it
 bool cLast[3] = {1, 1, 1}; // Used to smooth the mouse button operation, yours may work without it
+int xAccelLast = 125; // The last recieved accelerometer value for the x axis
+int yAccelLast = 125; // The last recieved accelerometer value for the y axis
 int SENSE_MULT = 1; // A sensitivity multiplier for the mouse movement
 int READ_FREQ = 15; // Delay between reads, in milliseconds
+int accelInit = 0; // Detects if the accelerometer-keyboard control has been initialized yet
+// NOTE: This is done by pressing c and z simultaniously. There is no off sequence.
+
 
 
 void setup() {
@@ -59,6 +64,13 @@ void send_zero()
   Wire.endTransmission ();  // stop transmitting
 }
 
+// Encode data to format that most wiimote drivers except
+// only needed if you use one of the regular wiimote drivers
+char nunchuk_decode_byte (char x)
+{
+  x = (x ^ 0x17) + 0x17;
+  return x;
+}
 
 void loop() {
   t++;
@@ -82,6 +94,27 @@ void loop() {
   delay(1);
 }
 
+// Calculate the Mouse.move() value based on joystick position
+int stickWrite(int jVal) {
+  if (jVal <= 25) return 0;
+  if (jVal <= 44) return -21;
+  if (jVal <= 59) return -17;
+  if (jVal <= 74) return -13;
+  if (jVal <= 89) return -10;
+  if (jVal <= 104) return -4;
+  if (jVal <= 111) return -3;
+  if (jVal <= 119) return -2;
+  if (jVal <= 135) return 0;
+  if (jVal <= 155) return 2;
+  if (jVal <= 162) return 3;
+  if (jVal <= 171) return 4;
+  if (jVal <= 187) return 10;
+  if (jVal <= 203) return 13;
+  if (jVal <= 219) return 17;
+  if (jVal <= 235) return 21; // was 230, my nunchuck is having issues so I changed this
+  return 0;
+
+}
 
 void printNunchuckData()
 {
@@ -145,11 +178,16 @@ void printNunchuckData()
   zLast[1] = zLast[2];
   zLast[2] = z_button;
   Mouse.begin();
+
   //Mouse movement
-  Mouse.move(stickWrite(joy_x_axis*SENSE_MULT), -stickWrite(joy_y_axis*SENSE_MULT), 0);
+  Mouse.move(stickWrite(joy_x_axis * SENSE_MULT), -stickWrite(joy_y_axis * SENSE_MULT), 0);
+
   //Mouse press and release for left button (c on wii remote)
   if (cLast[0] == 1 && cLast[1] == 1 && cLast[2] == 0 && c_button == 0) {
     Mouse.press(MOUSE_LEFT);
+    if (accelInit == 2 || accelInit == 0) {
+      accelInit++;
+    }
   }
   if (cLast[0] == 0 && cLast[1] == 0 && cLast[2] == 1 && c_button == 1) {
     Mouse.release(MOUSE_LEFT);
@@ -157,38 +195,75 @@ void printNunchuckData()
   //Mouse press and release for right button (z on wii remote)
   if (zLast[0] == 1 && zLast[1] == 1 && zLast[2] == 0 && z_button == 0) {
     Mouse.press(MOUSE_RIGHT);
+    if (accelInit == 1 || accelInit == 0) {
+      accelInit += 2;
+    }
   }
   if (zLast[0] == 0 && zLast[1] == 0 && zLast[2] == 1 && z_button == 1) {
     Mouse.release(MOUSE_RIGHT);
   }
   Mouse.end();
-}
-// Calculate the Mouse.move() value based on joystick position
-int stickWrite(int jVal) {
-  if (jVal <= 25) return 0;
-  if (jVal <= 44) return -21;
-  if (jVal <= 59) return -17;
-  if (jVal <= 74) return -13;
-  if (jVal <= 89) return -10;
-  if (jVal <= 104) return -4;
-  if (jVal <= 111) return -3;
-  if (jVal <= 119) return -2;
-  if (jVal <= 135) return 0;
-  if (jVal <= 155) return 2;
-  if (jVal <= 162) return 3;
-  if (jVal <= 171) return 4;
-  if (jVal <= 187) return 10;
-  if (jVal <= 203) return 13;
-  if (jVal <= 219) return 17;
-  if (jVal <= 235) return 21; // was 230, my nunchuck is having issues so I changed this
-  return 0;
+
+  //Shutoff Provisions
+  if (accel_z_axis <= 99) {
+    accelInit == 0;
+    Keyboard.begin();
+    Keyboard.releaseAll();
+    Keyboard.end();
+    xAccelLast = 125;
+    yAccelLast = 125;
+  }
+  //Keyboard Control
+  if (accelInit == 3) {
+    // X Accelleration aka Left and Right Movement
+    if (xAccelLast <= 100 || xAccelLast >= 150) {
+      if (accel_x_axis > 100 && accel_x_axis < 150) {
+        Keyboard.begin();
+        Keyboard.releaseAll();
+        Keyboard.end();
+      }
+    }
+    if (accel_x_axis <= 100 && xAccelLast > 100) {
+      Keyboard.begin();
+      Keyboard.begin();
+      Keyboard.releaseAll();
+      Keyboard.press('a');
+      Keyboard.end();
+    }
+    if (accel_x_axis >= 150 && xAccelLast < 150) {
+      Keyboard.begin();
+      Keyboard.begin();
+      Keyboard.releaseAll();
+      Keyboard.press('d');
+      Keyboard.end();
+    }
+
+    // Y Accelleration aka Left and Right Movement
+    if (yAccelLast <= 100 || yAccelLast >= 150) {
+      if (accel_y_axis > 100 && accel_y_axis < 150) {
+        Keyboard.begin();
+        Keyboard.releaseAll();
+        Keyboard.end();
+      }
+    }
+    if (accel_y_axis <= 100 && yAccelLast > 100) {
+      Keyboard.begin();
+      Keyboard.begin();
+      Keyboard.releaseAll();
+      Keyboard.press('s');
+      Keyboard.end();
+    }
+    if (accel_y_axis >= 150 && yAccelLast < 150) {
+      Keyboard.begin();
+      Keyboard.begin();
+      Keyboard.releaseAll();
+      Keyboard.press('w');
+      Keyboard.end();
+    }
+
+    //xAccelLast = accel_x_axis;
+    //yAccelLast = accel_y_axis;
+  } // End of Keyboard Controll
+
 }
 
-
-// Encode data to format that most wiimote drivers except
-// only needed if you use one of the regular wiimote drivers
-char nunchuk_decode_byte (char x)
-{
-  x = (x ^ 0x17) + 0x17;
-  return x;
-}
