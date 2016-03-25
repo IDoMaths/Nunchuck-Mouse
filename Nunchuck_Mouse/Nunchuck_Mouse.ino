@@ -225,13 +225,11 @@ void printNunchuckData()
     }
     if (accel_x_axis <= 100 && xAccelLast > 100) {
       Keyboard.begin();
-      Keyboard.begin();
       Keyboard.releaseAll();
       Keyboard.press('a');
       Keyboard.end();
     }
     if (accel_x_axis >= 150 && xAccelLast < 150) {
-      Keyboard.begin();
       Keyboard.begin();
       Keyboard.releaseAll();
       Keyboard.press('d');
@@ -248,22 +246,19 @@ void printNunchuckData()
     }
     if (accel_y_axis <= 100 && yAccelLast > 100) {
       Keyboard.begin();
-      Keyboard.begin();
       Keyboard.releaseAll();
       Keyboard.press('s');
       Keyboard.end();
     }
     if (accel_y_axis >= 150 && yAccelLast < 150) {
       Keyboard.begin();
-      Keyboard.begin();
       Keyboard.releaseAll();
       Keyboard.press('w');
       Keyboard.end();
     }
 
-    //xAccelLast = accel_x_axis;
-    //yAccelLast = accel_y_axis;
+    xAccelLast = accel_x_axis;
+    yAccelLast = accel_y_axis;
   } // End of Keyboard Controll
 
 }
-
